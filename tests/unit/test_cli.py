@@ -29,7 +29,7 @@ def test_init_and_help(tmp_path: Path, monkeypatch: object) -> None:
 
 
 def test_migrate_and_benchmark(tmp_path: Path) -> None:
-    database = tmp_path / "migrated.db"
+    database = tmp_path / "nested" / "migrated.db"
     migrated = runner.invoke(
         app,
         ["migrate", "--dsn", f"sqlite+aiosqlite:///{database}"],

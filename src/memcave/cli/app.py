@@ -85,6 +85,7 @@ def migrate(dsn: str = DsnOpt) -> None:
     from alembic.config import Config
 
     settings = _settings(None, dsn)
+    _ensure_sqlite_directory(settings.storage_dsn)
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", settings.storage_dsn)
     command.upgrade(config, "head")
@@ -255,6 +256,19 @@ def user_erase(
         manager.erase_user_data(EraseUserDataRequest(tenant_id=tenant_id, user_id=user_id))
     )
     typer.echo(result.counts.model_dump_json())
+
+
+def _ensure_sqlite_directory(dsn: str) -> None:
+    """Create the parent directory for a file-backed SQLite DSN."""
+    from sqlalchemy.engine.url import make_url
+
+    url = make_url(dsn)
+    if not url.drivername.startswith("sqlite"):
+        return
+    database = url.database
+    if database is None or database == ":memory:":
+        return
+    Path(database).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
 
 def main() -> None:
