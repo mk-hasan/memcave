@@ -1,5 +1,6 @@
 """CLI smoke tests."""
 
+import re
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -7,15 +8,20 @@ from typer.testing import CliRunner
 from memcave.cli.app import app
 
 runner = CliRunner()
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def plain(output: str) -> str:
+    return " ".join(ANSI.sub("", output).split())
 
 
 def test_review_help() -> None:
     listed = runner.invoke(app, ["memory", "review", "list", "--help"])
     assert listed.exit_code == 0, listed.output
-    assert "--tenant" in listed.output
+    assert "--tenant" in plain(listed.output)
     accepted = runner.invoke(app, ["memory", "review", "accept", "--help"])
     assert accepted.exit_code == 0, accepted.output
-    assert "--yes" in accepted.output
+    assert "--yes" in plain(accepted.output)
 
 
 def test_init_and_help(tmp_path: Path, monkeypatch: object) -> None:
