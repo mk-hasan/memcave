@@ -151,7 +151,7 @@ Goal: installable package, optional dashboard, CI, and honest docs.
 - [x] Add `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `CHANGELOG`, issue templates, and a pull-request template.
 - [x] Add pre-commit and GitHub Actions for Ruff, mypy, pytest, SQLite migration, package build, PostgreSQL, and LangGraph.
 - [ ] Confirm the Apache-2.0 copyright line with the owner and update the license appendix. The appendix is still `Copyright [yyyy] [name of copyright owner]` on purpose.
-- [ ] Set version `0.1.0` only when the acceptance list below is true.
+- [x] Set version `0.1.0` only when the acceptance list below is true. GitHub Actions passed on `4bce01b`.
 
 ## Phase 8 — Release lock
 
@@ -165,7 +165,7 @@ Goal: the local 0.1.0.dev0 claim is reproducible, and the five write invariants 
 - [x] The PostgreSQL job runs `pytest -m postgres` against the shared contract suite. The default suite skips that marker.
 - [x] The benchmark report header says the reader is scripted. Tests do not claim that hybrid has the best score.
 - [x] The Compose password is documented as local-only. The WSL Streamlit bind address is documented. The closed IDE browser is not a product change.
-- [ ] Version stays `0.1.0.dev0` until `.github/workflows/ci.yml` passes on the published commit. This lock does not push.
+- [x] Version stays `0.1.0.dev0` until `.github/workflows/ci.yml` passes on the published commit. It passed on `4bce01b` ([run 40151595522](https://github.com/mk-hasan/memcave/actions/runs/40151595522)). The package version is `0.1.0`.
 
 Exit check:
 
@@ -207,6 +207,7 @@ Local commands on Python 3.14.4, after `uv venv` and `uv pip install -e ".[dev]"
 - `pytest tests/integration`: 3 passed with the langgraph extra installed.
 - Streamlit `AppTest` uploaded a benchmark JSON and rendered the metrics table. A closed browser at `127.0.0.1:8765` is a WSL reachability issue, not a product failure. Bind with `streamlit run src/memcave/dashboard/app.py --server.address 0.0.0.0 --server.port 8765` and open the WSL IP from Windows.
 - `.github/workflows/ci.yml` was not run for this lock. Nothing was pushed. The package version stays `0.1.0.dev0`.
+- Later, Actions passed on `4bce01b` ([run 40151595522](https://github.com/mk-hasan/memcave/actions/runs/40151595522)). The package version is `0.1.0`. The `v0.1.0` tag is created on that release commit.
 
 ## Remaining risks
 

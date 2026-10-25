@@ -8,17 +8,24 @@ Version 0.1 is a library and a local command-line tool. It does not ship an HTTP
 
 ## Install
 
+Install 0.1.0 from the git tag, without cloning the repository first:
+
+```bash
+pip install "memcave @ git+https://github.com/mk-hasan/memcave@v0.1.0"
+```
+
+SQLite is included. A real model needs the OpenAI extra:
+
+```bash
+pip install "memcave[openai] @ git+https://github.com/mk-hasan/memcave@v0.1.0"
+```
+
+Python 3.12 or newer is required. To work on a checkout:
+
 ```bash
 pip install -e ".[dev]"
-```
-
-SQLite is included. PostgreSQL, LangGraph, OpenAI, local embeddings, and the Streamlit dashboard are extras:
-
-```bash
 pip install -e ".[postgres,langgraph,openai,embeddings,dashboard]"
 ```
-
-Python 3.12 or newer is required.
 
 ## Five-minute SQLite quickstart
 
@@ -38,6 +45,38 @@ memcave migrate
 `memcave init` writes `.memcave/config.toml` and prepares the local SQLite file. `memcave user erase` prints a dry run unless you pass `--yes`.
 
 An in-memory script that never touches disk is `examples/quickstart_memory.py`.
+
+## Use a real model
+
+The default chat and embedding providers are fake. Tests and CI use them, and they do not call a network. One OpenAI-compatible adapter serves a local server and a public API. Keep `MEMCAVE_API_KEY` in the environment. Do not put it in `.memcave/config.toml`.
+
+A small local model may fail JSON extraction. Dreamflow records that failure in the run report and does not write a memory from the invalid response. If you change `MEMCAVE_EMBEDDING_DIMENSION`, run `memcave embeddings rebuild --dimension N` and then the same command with `--yes` before searching. Without `--yes`, the command prints the plan and writes nothing.
+
+Local server:
+
+```bash
+export MEMCAVE_MODEL_PROVIDER=openai_compatible
+export MEMCAVE_EMBEDDING_PROVIDER=openai_compatible
+export MEMCAVE_BASE_URL=http://localhost:11434/v1
+export MEMCAVE_API_KEY=ollama
+export MEMCAVE_MODEL=your-chat-model
+export MEMCAVE_EMBEDDING_MODEL=your-embedding-model
+export MEMCAVE_EMBEDDING_DIMENSION=768
+```
+
+Public API:
+
+```bash
+export MEMCAVE_MODEL_PROVIDER=openai_compatible
+export MEMCAVE_EMBEDDING_PROVIDER=openai_compatible
+export MEMCAVE_BASE_URL=https://api.openai.com/v1
+export MEMCAVE_API_KEY="$OPENAI_API_KEY"
+export MEMCAVE_MODEL=gpt-4o-mini
+export MEMCAVE_EMBEDDING_MODEL=text-embedding-3-small
+export MEMCAVE_EMBEDDING_DIMENSION=1536
+```
+
+Replace the local model names and dimension with the values your server reports. The rebuild order and the live test are in [docs/live-models.md](docs/live-models.md).
 
 ## What 0.1 includes
 

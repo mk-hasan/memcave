@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0.dev0
+## 0.1.0
 
 First implementation of the 0.1 library:
 
@@ -19,4 +19,4 @@ First implementation of the 0.1 library:
 - an embedding provider factory and `memcave embeddings rebuild`, which replaces stored vectors before updating `engine_metadata`
 - one OpenAI-compatible adapter for local and public chat and embeddings, with the fake providers still the default
 
-The license appendix is still the Apache placeholder `Copyright [yyyy] [name of copyright owner]`. This version stays `0.1.0.dev0` until GitHub Actions passes. That workflow was not run for this lock.
+The license appendix is still the Apache placeholder `Copyright [yyyy] [name of copyright owner]`. GitHub Actions passed on `4bce01b` ([run 40151595522](https://github.com/mk-hasan/memcave/actions/runs/40151595522)) before this version cut.
