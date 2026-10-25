@@ -22,12 +22,14 @@ from memcave.domain.api import (
 from memcave.services.memory_manager import MemoryManager
 
 app = typer.Typer(no_args_is_help=True, help="Persistent memory for AI agents.")
+embeddings_app = typer.Typer(no_args_is_help=True, help="Rebuild stored embedding vectors.")
 session_app = typer.Typer(no_args_is_help=True, help="Inspect sessions.")
 memory_app = typer.Typer(no_args_is_help=True, help="Search and export memory.")
 dream_app = typer.Typer(no_args_is_help=True, help="Run dreamflow.")
 benchmark_app = typer.Typer(no_args_is_help=True, help="Run and render benchmarks.")
 user_app = typer.Typer(no_args_is_help=True, help="Erase a user's stored data.")
 app.add_typer(session_app, name="session")
+app.add_typer(embeddings_app, name="embeddings")
 review_app = typer.Typer(no_args_is_help=True, help="Accept or reject candidate memories.")
 memory_app.add_typer(review_app, name="review")
 app.add_typer(memory_app, name="memory")
@@ -78,6 +80,45 @@ def init(
     if backend == "sqlite":
         asyncio.run(build_manager(Settings(storage_backend="sqlite", storage_dsn=dsn)))
     typer.echo(f"wrote {config}")
+
+
+@embeddings_app.command("rebuild")
+def embeddings_rebuild(
+    dimension: int = typer.Option(..., "--dimension", help="Target vector dimension"),
+    yes: bool = typer.Option(False, "--yes", help="Replace stored vectors"),
+    backend: str | None = BackendOpt,
+    dsn: str | None = DsnOpt,
+) -> None:
+    """Re-embed active memories and episodic rows with the configured provider."""
+    settings = _settings(backend, dsn)
+    if settings.storage_backend not in {"sqlite", "postgres"}:
+        raise typer.BadParameter("embeddings rebuild needs a sqlite or postgres database")
+    _ensure_sqlite_directory(settings.storage_dsn)
+    plan = asyncio.run(_rebuild(settings, dimension, apply=yes))
+    typer.echo(f"stored dimension {plan.stored_dimension}")
+    typer.echo(f"target dimension {plan.target_dimension}")
+    typer.echo(f"active vectors {plan.active_vectors}")
+    if yes:
+        typer.echo("rebuilt")
+
+
+async def _rebuild(settings: Settings, dimension: int, *, apply: bool) -> object:
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from memcave.adapters.embeddings.factory import build_embedding_provider
+    from memcave.adapters.embeddings.rebuild import apply_rebuild, plan_rebuild
+
+    if settings.storage_backend == "postgres":
+        import asyncpg  # noqa: F401
+
+    engine = create_async_engine(settings.storage_dsn)
+    try:
+        if not apply:
+            return await plan_rebuild(engine, dimension)
+        provider = build_embedding_provider(settings.embedding_provider, dimension)
+        return await apply_rebuild(engine, provider, dimension)
+    finally:
+        await engine.dispose()
 
 
 @app.command()

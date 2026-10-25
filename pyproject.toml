@@ -31,6 +31,7 @@ dependencies = [
 postgres = ["asyncpg>=0.29", "pgvector>=0.3"]
 langgraph = ["langgraph>=0.2", "langchain-core>=0.3"]
 openai = ["openai>=1.40"]
+embeddings = ["fastembed>=0.3"]
 dashboard = ["streamlit>=1.36"]
 dev = [
     "build>=1.2",
@@ -42,7 +43,7 @@ dev = [
     "ruff>=0.6",
 ]
 all = [
-    "memcave[postgres,langgraph,openai,dashboard,dev]",
+    "memcave[postgres,langgraph,openai,embeddings,dashboard,dev]",
 ]
 
 [project.scripts]
@@ -89,6 +90,7 @@ testpaths = ["tests"]
 pythonpath = ["src", "."]
 markers = [
     "postgres: requires a PostgreSQL database with pgvector",
+    "embeddings: downloads the local FastEmbed model and is skipped unless opted in",
 ]
 addopts = "-m 'not postgres'"
 

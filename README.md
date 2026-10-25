@@ -12,10 +12,10 @@ Version 0.1 is a library and a local command-line tool. It does not ship an HTTP
 pip install -e ".[dev]"
 ```
 
-SQLite is included. PostgreSQL, LangGraph, OpenAI, and the Streamlit dashboard are extras:
+SQLite is included. PostgreSQL, LangGraph, OpenAI, local embeddings, and the Streamlit dashboard are extras:
 
 ```bash
-pip install -e ".[postgres,langgraph,openai,dashboard]"
+pip install -e ".[postgres,langgraph,openai,embeddings,dashboard]"
 ```
 
 Python 3.12 or newer is required.
@@ -71,7 +71,33 @@ Memory text is untrusted data. Search wraps it in `<<<MEMCAVE_MEMORY>>>` delimit
 
 The default benchmark reader is a deterministic script. It shows whether a strategy put a fact in the prompt. It does not measure open-ended reasoning. Reports say so, and they do not rank a winner from an LLM judge.
 
-The built-in embedder uses 64 dimensions. A different embedding model requires a matching dimension in `engine_metadata` and a re-embed. Startup fails if the stored dimension does not match.
+## Embeddings
+
+The fake embedding provider is the default. It is for tests and offline development. It does not retrieve by meaning; it folds tokens into a fixed vector. The default test run uses it and does not download a model or call the network.
+
+To search an existing database with a local model:
+
+```bash
+pip install -e ".[embeddings]"
+```
+
+Set the provider in `.memcave/config.toml` or the environment:
+
+```toml
+embedding_provider = "local"
+embedding_dimension = 384
+```
+
+That selects FastEmbed model `BAAI/bge-small-en-v1.5` (384 dimensions). Run the rebuild before searching a database that was created with another dimension:
+
+```bash
+memcave embeddings rebuild --dimension 384
+memcave embeddings rebuild --dimension 384 --yes
+```
+
+Without `--yes`, the command prints the stored dimension, the target dimension, and the number of active vectors, and it does not write. Startup still refuses to run when the provider dimension and `engine_metadata` disagree.
+
+OpenAI embeddings are optional (`pip install -e ".[openai]"`, `embedding_provider = "openai"`, model `text-embedding-3-small`, 1536 dimensions). The key is read from `OPENAI_API_KEY` and is not stored. Changing dimension, including a switch to OpenAI, requires `memcave embeddings rebuild`. A dimension above 2000 is rejected because a standard pgvector HNSW index cannot hold it.
 
 See [docs/threat-model.md](docs/threat-model.md), [docs/lifecycle.md](docs/lifecycle.md), and [docs/evaluation.md](docs/evaluation.md).
 
@@ -83,6 +109,7 @@ See [docs/threat-model.md](docs/threat-model.md), [docs/lifecycle.md](docs/lifec
 | Memory model | [docs/memory-model.md](docs/memory-model.md) |
 | Lifecycle and dreamflow | [docs/lifecycle.md](docs/lifecycle.md), [docs/dreamflow.md](docs/dreamflow.md) |
 | PostgreSQL | [docs/postgres.md](docs/postgres.md) |
+| Embeddings | this README, section Embeddings |
 | LangGraph | [docs/langgraph.md](docs/langgraph.md) |
 | Evaluation | [docs/evaluation.md](docs/evaluation.md) |
 | API stubs | [docs/api.md](docs/api.md) |

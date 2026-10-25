@@ -2,11 +2,12 @@
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from memcave.adapters.embeddings.fake import FakeEmbeddingProvider
+from memcave.adapters.embeddings.factory import build_embedding_provider
 from memcave.adapters.models.fake import FakeModelProvider
 from memcave.adapters.sql.derived import SqlDerivedStore, SqlEventSink, SqlVectorStore
 from memcave.adapters.sql.gateway import SqlEpisodicStore, SqlGateway, prepare_database
 from memcave.bootstrap import Settings, retrieval_config
+from memcave.ports.protocols import EmbeddingProvider
 from memcave.services.memory_manager import MemoryManager
 from memcave.services.runtime import (
     DefaultWritePolicy,
@@ -18,13 +19,16 @@ from memcave.services.runtime import (
 
 
 async def open_sqlite(settings: Settings) -> MemoryManager:
+    embeddings = build_embedding_provider(settings.embedding_provider, settings.embedding_dimension)
     engine = create_async_engine(settings.storage_dsn)
-    await prepare_database(engine, settings.embedding_dimension)
+    await prepare_database(engine, embeddings.dimension)
     gateway = SqlGateway(engine)
-    return _manager(settings, gateway)
+    return _manager(settings, gateway, embeddings)
 
 
-def _manager(settings: Settings, gateway: SqlGateway) -> MemoryManager:
+def _manager(
+    settings: Settings, gateway: SqlGateway, embeddings: EmbeddingProvider
+) -> MemoryManager:
     provider: object
     if settings.model_provider == "openai":
         from memcave.adapters.models.openai import OpenAIModelProvider
@@ -36,7 +40,7 @@ def _manager(settings: Settings, gateway: SqlGateway) -> MemoryManager:
         episodic_store=SqlEpisodicStore(gateway),
         derived_store=SqlDerivedStore(gateway),
         vector_store=SqlVectorStore(gateway),
-        embedding_provider=FakeEmbeddingProvider(settings.embedding_dimension),
+        embedding_provider=embeddings,
         model_provider=provider,  # type: ignore[arg-type]
         clock=SystemClock(),
         event_sink=SqlEventSink(gateway),

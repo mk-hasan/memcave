@@ -16,5 +16,7 @@ First implementation of the 0.1 library:
 - workflow steps appended to the fenced context only when that workflow's subject is in the question
 - an evidence event id on each index line, without the episode body
 - `memcave memory review` commands that accept a candidate with a new version or reject it with hash suppression
+- an embedding provider factory for the fake, local FastEmbed, and optional OpenAI embedders
+- `memcave embeddings rebuild` to replace stored vectors before updating `engine_metadata`
 
 The license appendix is still the Apache placeholder `Copyright [yyyy] [name of copyright owner]`. This version stays `0.1.0.dev0` until GitHub Actions passes. That workflow was not run for this lock.

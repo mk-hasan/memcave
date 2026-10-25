@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from memcave.adapters.embeddings.fake import FakeEmbeddingProvider
+from memcave.adapters.embeddings.factory import build_embedding_provider
 from memcave.adapters.memory.stores import (
     InMemoryData,
     InMemoryDerivedStore,
@@ -66,7 +66,9 @@ def in_memory_manager(settings: Settings | None = None) -> MemoryManager:
         episodic_store=InMemoryEpisodicStore(data),
         derived_store=InMemoryDerivedStore(data),
         vector_store=InMemoryVectorStore(data),
-        embedding_provider=FakeEmbeddingProvider(current.embedding_dimension),
+        embedding_provider=build_embedding_provider(
+            current.embedding_provider, current.embedding_dimension
+        ),
         model_provider=FakeModelProvider(model_name=current.model_name),
         clock=SystemClock(),
         event_sink=InMemoryEventSink(data),
