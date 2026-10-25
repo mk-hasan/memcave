@@ -61,7 +61,7 @@ Use the WSL IP from Windows, for example `http://<wsl-ip>:8765`.
 ## What 0.1 does not include
 
 - CrewAI, AutoGen, or a hosted vector database
-- More than one production model provider (OpenAI is optional; tests use a fake provider)
+- A hosted model. Tests use a fake provider. A real server is optional through one OpenAI-compatible adapter.
 - PostgreSQL row-level security
 - A claim that memcave scores higher than the baselines
 
@@ -75,29 +75,7 @@ The default benchmark reader is a deterministic script. It shows whether a strat
 
 The fake embedding provider is the default. It is for tests and offline development. It does not retrieve by meaning; it folds tokens into a fixed vector. The default test run uses it and does not download a model or call the network.
 
-To search an existing database with a local model:
-
-```bash
-pip install -e ".[embeddings]"
-```
-
-Set the provider in `.memcave/config.toml` or the environment:
-
-```toml
-embedding_provider = "local"
-embedding_dimension = 384
-```
-
-That selects FastEmbed model `BAAI/bge-small-en-v1.5` (384 dimensions). Run the rebuild before searching a database that was created with another dimension:
-
-```bash
-memcave embeddings rebuild --dimension 384
-memcave embeddings rebuild --dimension 384 --yes
-```
-
-Without `--yes`, the command prints the stored dimension, the target dimension, and the number of active vectors, and it does not write. Startup still refuses to run when the provider dimension and `engine_metadata` disagree.
-
-OpenAI embeddings are optional (`pip install -e ".[openai]"`, `embedding_provider = "openai"`, model `text-embedding-3-small`, 1536 dimensions). The key is read from `OPENAI_API_KEY` and is not stored. Changing dimension, including a switch to OpenAI, requires `memcave embeddings rebuild`. A dimension above 2000 is rejected because a standard pgvector HNSW index cannot hold it.
+A real local or public model uses one OpenAI-compatible adapter. See [docs/live-models.md](docs/live-models.md) for the environment variables, the local and public commands, and the rebuild warning. The API key stays in the environment. Startup refuses to run when the provider dimension and `engine_metadata` disagree, and a dimension above 2000 is rejected because a standard pgvector HNSW index cannot hold it.
 
 See [docs/threat-model.md](docs/threat-model.md), [docs/lifecycle.md](docs/lifecycle.md), and [docs/evaluation.md](docs/evaluation.md).
 
@@ -110,6 +88,7 @@ See [docs/threat-model.md](docs/threat-model.md), [docs/lifecycle.md](docs/lifec
 | Lifecycle and dreamflow | [docs/lifecycle.md](docs/lifecycle.md), [docs/dreamflow.md](docs/dreamflow.md) |
 | PostgreSQL | [docs/postgres.md](docs/postgres.md) |
 | Embeddings | this README, section Embeddings |
+| Live models | [docs/live-models.md](docs/live-models.md) |
 | LangGraph | [docs/langgraph.md](docs/langgraph.md) |
 | Evaluation | [docs/evaluation.md](docs/evaluation.md) |
 | API stubs | [docs/api.md](docs/api.md) |

@@ -42,25 +42,25 @@ def test_factory_defaults_to_fake_and_rejects_missing_extras(
     assert provider.dimension == 64
     with pytest.raises(ProviderError, match="2000"):
         build_embedding_provider("fake", 2001)
-    with pytest.raises(ProviderError, match="384"):
-        build_embedding_provider("local", 64)
-    with pytest.raises(ProviderError, match="1536"):
-        build_embedding_provider("openai", 64)
+    with pytest.raises(ProviderError, match="unknown embedding provider"):
+        build_embedding_provider("local", 384)
 
     real_import = __import__
 
     def blocked(name: str, *args: object, **kwargs: object) -> object:
-        if name == "fastembed" or name.startswith("fastembed."):
-            raise ImportError(name)
         if name == "openai" or name.startswith("openai."):
             raise ImportError(name)
         return real_import(name, *args, **kwargs)  # type: ignore[no-any-return]
 
     monkeypatch.setattr("builtins.__import__", blocked)
-    with pytest.raises(ProviderError, match=r"memcave\[embeddings\]"):
-        build_embedding_provider("local", 384)
     with pytest.raises(ProviderError, match=r"memcave\[openai\]"):
-        build_embedding_provider("openai", 1536)
+        build_embedding_provider(
+            "openai_compatible",
+            32,
+            base_url="http://localhost:11434/v1",
+            api_key="ollama",
+            model="embed-test",
+        )
 
 
 async def _snapshot(database: Path) -> tuple[int, list[tuple[str, int, int]]]:
@@ -203,18 +203,6 @@ def test_rebuild_dry_run_prints_dimensions(tmp_path: Path, monkeypatch: pytest.M
     assert "target dimension 32" in listed.output
     assert "active vectors 0" in listed.output
     assert "rebuilt" not in listed.output
-
-
-@pytest.mark.embeddings
-@pytest.mark.skipif(
-    os.environ.get("MEMCAVE_LOCAL_EMBEDDINGS") != "1",
-    reason="set MEMCAVE_LOCAL_EMBEDDINGS=1 to download the local embedding model",
-)
-async def test_local_model_returns_384_dimensions() -> None:
-    provider = build_embedding_provider("local", 384)
-    vectors = await provider.embed(["concise answers"])
-    assert len(vectors) == 1
-    assert len(vectors[0]) == 384
 
 
 @pytest.mark.postgres

@@ -15,6 +15,8 @@ from memcave.domain.api import (
     SearchMemoryRequest,
 )
 from memcave.domain.enums import EventType, MemoryCategory, MemoryKind
+from memcave.domain.errors import ProviderError
+from memcave.domain.models import ModelRequest, ModelResponse
 from memcave.services.memory_manager import MemoryManager
 
 
@@ -168,3 +170,80 @@ async def test_contradiction_creates_a_new_version(memory_manager: MemoryManager
     )
     assert "red widgets" in shown.memory.content
     assert shown.memory.version_number == 2
+
+
+class _InvalidJsonModel(FakeModelProvider):
+    async def complete_structured(self, request: ModelRequest) -> ModelResponse:
+        if request.task == "extract":
+            raise ProviderError("model returned invalid JSON")
+        return await super().complete_structured(request)
+
+
+async def test_invalid_model_json_is_reported_and_not_stored(
+    memory_manager: MemoryManager,
+) -> None:
+    session_id = await start(memory_manager)
+    await memory_manager.append_event(
+        AppendEventRequest(
+            tenant_id=TENANT,
+            user_id=USER,
+            session_id=session_id,
+            event_type=EventType.USER_MESSAGE,
+            payload={"content": "hello from the fixture"},
+        )
+    )
+    provider = memory_manager.model_provider
+    assert isinstance(provider, FakeModelProvider)
+    provider.scripts["extract"] = "not json"
+    await memory_manager.end_session(
+        EndSessionRequest(tenant_id=TENANT, user_id=USER, session_id=session_id)
+    )
+    result = await memory_manager.run_dreamflow(
+        RunDreamflowRequest(tenant_id=TENANT, user_id=USER, use_model=True)
+    )
+    assert (
+        "model returned invalid JSON; no model memory was written" in result.run.report["failures"]
+    )
+    found = await memory_manager.search_memory(
+        SearchMemoryRequest(
+            tenant_id=TENANT,
+            user_id=USER,
+            query_text="hello from the fixture",
+            memory_kinds=MemoryKind.DERIVED,
+        )
+    )
+    assert found.hits == []
+    assert "not json" not in result.run.report["index_markdown"]
+
+
+async def test_invalid_json_keeps_the_rule_memory(memory_manager: MemoryManager) -> None:
+    session_id = await start(memory_manager)
+    await memory_manager.append_event(
+        AppendEventRequest(
+            tenant_id=TENANT,
+            user_id=USER,
+            session_id=session_id,
+            event_type=EventType.USER_MESSAGE,
+            payload={"content": "I prefer concise answers"},
+        )
+    )
+    memory_manager.pipeline.extractor.model = _InvalidJsonModel()
+    await memory_manager.end_session(
+        EndSessionRequest(tenant_id=TENANT, user_id=USER, session_id=session_id)
+    )
+    result = await memory_manager.run_dreamflow(
+        RunDreamflowRequest(tenant_id=TENANT, user_id=USER, use_model=True)
+    )
+    assert (
+        "model returned invalid JSON; no model memory was written" in result.run.report["failures"]
+    )
+    found = await memory_manager.search_memory(
+        SearchMemoryRequest(
+            tenant_id=TENANT,
+            user_id=USER,
+            query_text="concise answers",
+            memory_kinds=MemoryKind.DERIVED,
+        )
+    )
+    assert found.hits
+    assert all("not json" not in hit.content for hit in found.hits)

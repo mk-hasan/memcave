@@ -91,8 +91,9 @@ pythonpath = ["src", "."]
 markers = [
     "postgres: requires a PostgreSQL database with pgvector",
     "embeddings: downloads the local FastEmbed model and is skipped unless opted in",
+    "live: calls the configured OpenAI-compatible server; skipped unless MEMCAVE_LIVE=1",
 ]
-addopts = "-m 'not postgres'"
+addopts = "-m 'not postgres and not live'"
 
 [tool.coverage.run]
 branch = true

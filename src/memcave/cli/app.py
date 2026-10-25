@@ -8,7 +8,7 @@ from uuid import UUID
 
 import typer
 
-from memcave.bootstrap import Settings, build_manager
+from memcave.bootstrap import Settings, build_manager, configured_embeddings
 from memcave.domain.api import (
     EraseUserDataRequest,
     ExportMarkdownRequest,
@@ -105,7 +105,6 @@ def embeddings_rebuild(
 async def _rebuild(settings: Settings, dimension: int, *, apply: bool) -> object:
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    from memcave.adapters.embeddings.factory import build_embedding_provider
     from memcave.adapters.embeddings.rebuild import apply_rebuild, plan_rebuild
 
     if settings.storage_backend == "postgres":
@@ -115,7 +114,7 @@ async def _rebuild(settings: Settings, dimension: int, *, apply: bool) -> object
     try:
         if not apply:
             return await plan_rebuild(engine, dimension)
-        provider = build_embedding_provider(settings.embedding_provider, dimension)
+        provider = configured_embeddings(settings, dimension)
         return await apply_rebuild(engine, provider, dimension)
     finally:
         await engine.dispose()

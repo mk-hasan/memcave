@@ -31,7 +31,7 @@ from memcave.domain.enums import (
     ResolutionStrategy,
     RunStatus,
 )
-from memcave.domain.errors import PolicyRejectedError
+from memcave.domain.errors import PolicyRejectedError, ProviderError
 from memcave.domain.models import (
     AuditEvent,
     DreamflowItem,
@@ -52,6 +52,14 @@ from memcave.services.render import render_index
 from memcave.services.text import content_hash, event_search_text, resolve_subject_key
 
 PIPELINE_VERSION = "0.1"
+_INVALID_MODEL_JSON = "model returned invalid JSON"
+_INVALID_MODEL_JSON_REPORT = "model returned invalid JSON; no model memory was written"
+_EXTRACT_SYSTEM_PROMPT = (
+    "Return JSON matching the extraction batch schema "
+    '{"candidates":[{"category":"preference","title":"","content":"",'
+    '"confidence":0.0,"importance":0.0,"evidence_event_ids":[]}]}.'
+    " Copy evidence_event_ids from the transcript."
+)
 _CONTRADICTION = ("instead of", "no longer", "do not", "not ", "that was wrong")
 
 
@@ -66,6 +74,7 @@ class SessionSelector:
 class CandidateExtractor:
     def __init__(self, model: ModelProvider | None = None) -> None:
         self.model = model
+        self.failures: list[str] = []
 
     async def extract(
         self,
@@ -87,6 +96,7 @@ class CandidateExtractor:
             cursor=None,
             user_id=session.user_id,
         )
+        self.failures = []
         found: list[MemoryCandidate] = []
         for event in events:
             candidate = _from_event(run, session, event)
@@ -111,13 +121,20 @@ class CandidateExtractor:
         )
         request = ModelRequest(
             task="extract",
-            system_prompt="Return JSON matching the extraction batch schema.",
+            system_prompt=_EXTRACT_SYSTEM_PROMPT,
             user_prompt=transcript,
             temperature=0.0,
             seed=0,
         )
-        parsed = await _complete_validated(self.model, request, ExtractionBatch)
+        try:
+            parsed = await _complete_validated(self.model, request, ExtractionBatch)
+        except ProviderError as exc:
+            if str(exc) != _INVALID_MODEL_JSON:
+                raise
+            self.failures.append(_INVALID_MODEL_JSON_REPORT)
+            return []
         if parsed is None:
+            self.failures.append(_INVALID_MODEL_JSON_REPORT)
             return []
         event_ids = {event.event_id for event in events}
         candidates: list[MemoryCandidate] = []
@@ -505,11 +522,12 @@ class DreamflowPipeline:
         all_candidates: list[MemoryCandidate] = []
         for session in sessions:
             try:
-                produced, written = await self._session(
+                produced, written, model_failures = await self._session(
                     deps, run, session, use_model=request.use_model
                 )
                 all_candidates.extend(produced)
                 notes.extend(written)
+                failures.extend(model_failures)
                 notes.append(f"session:{session.session_id}")
                 session_row = session.model_copy(
                     update={
@@ -572,15 +590,16 @@ class DreamflowPipeline:
         session: Session,
         *,
         use_model: bool,
-    ) -> tuple[list[MemoryCandidate], list[str]]:
+    ) -> tuple[list[MemoryCandidate], list[str], list[str]]:
         extracted = await self.extractor.extract(deps, run, session, use_model=use_model)
+        model_failures = list(self.extractor.failures)
         validated = self.validator.validate(session, extracted)
         classified = await self.classifier.classify(validated, use_model=use_model)
         deduped = await self.duplicates.mark(deps, classified)
         conflicted = await self.conflicts.mark(deps, deduped)
         planned = self.planner.plan(deps, conflicted)
         written = await self.writer.apply(deps, session, planned)
-        return planned, written
+        return planned, written, model_failures
 
 
 def _from_event(run: DreamflowRun, session: Session, event: SessionEvent) -> MemoryCandidate | None:

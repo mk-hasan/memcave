@@ -11,7 +11,15 @@ OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 OPENAI_EMBEDDING_DIMENSION = 1536
 
 
-def build_embedding_provider(name: str, dimension: int) -> EmbeddingProvider:
+def build_embedding_provider(
+    name: str,
+    dimension: int,
+    *,
+    base_url: str = "",
+    api_key: str = "",
+    model: str = "",
+    timeout: float = 60.0,
+) -> EmbeddingProvider:
     """Return the configured provider. The declared dimension must match settings."""
     if dimension > MAX_EMBEDDING_DIMENSION:
         raise ProviderError(
@@ -22,22 +30,16 @@ def build_embedding_provider(name: str, dimension: int) -> EmbeddingProvider:
         raise ProviderError("embedding dimension must be positive")
     if name == "fake":
         provider: EmbeddingProvider = FakeEmbeddingProvider(dimension)
-    elif name == "local":
-        if dimension != LOCAL_DIMENSION:
-            raise ProviderError(
-                f"provider local declares dimension {LOCAL_DIMENSION}, not {dimension}"
-            )
-        from memcave.adapters.embeddings.local import FastEmbedProvider
+    elif name == "openai_compatible":
+        from memcave.adapters.embeddings.openai import OpenAICompatibleEmbeddingProvider
 
-        provider = FastEmbedProvider()
-    elif name == "openai":
-        if dimension != OPENAI_EMBEDDING_DIMENSION:
-            raise ProviderError(
-                f"provider openai declares dimension {OPENAI_EMBEDDING_DIMENSION}, not {dimension}"
-            )
-        from memcave.adapters.embeddings.openai import OpenAIEmbeddingProvider
-
-        provider = OpenAIEmbeddingProvider()
+        provider = OpenAICompatibleEmbeddingProvider(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            dimension=dimension,
+            timeout=timeout,
+        )
     else:
         raise ProviderError(f"unknown embedding provider {name}")
     if provider.dimension != dimension:
