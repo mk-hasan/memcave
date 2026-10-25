@@ -735,6 +735,72 @@ def _hit_from_event(event: SessionEvent, text: str, parts: object) -> RetrievalH
     )
 
 
+async def list_candidate_memories(deps: Deps, tenant_id: UUID, user_id: UUID) -> list[Memory]:
+    scope = _scope(tenant_id, user_id)
+    as_of = deps.clock.now()
+    memories = await deps.derived.list_memories(
+        scope,
+        as_of=as_of,
+        include_shared=False,
+        include_candidates=True,
+        categories=None,
+        min_confidence=0.0,
+        user_id=user_id,
+    )
+    return [
+        memory
+        for memory in memories
+        if memory.status is MemoryStatus.CANDIDATE
+        and memory.user_id == user_id
+        and _visible(memory, as_of=as_of, include_candidates=True, min_confidence=0.0)
+    ]
+
+
+async def load_review_memory(deps: Deps, tenant_id: UUID, user_id: UUID, memory_id: UUID) -> Memory:
+    """Load the current version, including a candidate that search would hide."""
+    scope = _scope(tenant_id, user_id)
+    memory = await deps.derived.get_memory(
+        scope,
+        memory_id,
+        version_number=None,
+        as_of=None,
+        include_shared=False,
+    )
+    if memory is None or memory.user_id != user_id:
+        raise NotFoundError("memory was not found")
+    return memory
+
+
+async def accept_candidate(deps: Deps, tenant_id: UUID, user_id: UUID, memory_id: UUID) -> Memory:
+    current = await load_review_memory(deps, tenant_id, user_id, memory_id)
+    if current.status is not MemoryStatus.CANDIDATE:
+        raise ValidationError("only a candidate memory can be accepted")
+    return await update_memory(
+        deps,
+        UpdateMemoryRequest(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            memory_id=memory_id,
+            expected_version=current.version_number,
+            title=current.title,
+            content=current.content,
+            actor="review",
+        ),
+    )
+
+
+async def reject_candidate(deps: Deps, tenant_id: UUID, user_id: UUID, memory_id: UUID) -> Memory:
+    current = await load_review_memory(deps, tenant_id, user_id, memory_id)
+    if current.status is not MemoryStatus.CANDIDATE:
+        raise ValidationError("only a candidate memory can be rejected")
+    return await delete_memory(
+        deps,
+        DeleteMemoryRequest(
+            tenant_id=tenant_id, user_id=user_id, memory_id=memory_id, actor="review"
+        ),
+    )
+
+
 async def memories_for_index(
     deps: Deps, tenant_id: UUID, user_id: UUID, as_of: object, include_shared: bool
 ) -> list[Memory]:

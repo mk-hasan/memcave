@@ -1,7 +1,7 @@
 """Public facade over stores, retrieval, and dreamflow."""
 
 from datetime import datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from memcave.domain.api import (
     AddMemoryRequest,
@@ -36,7 +36,15 @@ from memcave.domain.api import (
 )
 from memcave.domain.enums import AuditAction, DreamflowState, SessionStatus
 from memcave.domain.errors import NotFoundError, ValidationError
-from memcave.domain.models import AuditEvent, RetrievalConfig, Session, Tenant, TenantScope, User
+from memcave.domain.models import (
+    AuditEvent,
+    Memory,
+    RetrievalConfig,
+    Session,
+    Tenant,
+    TenantScope,
+    User,
+)
 from memcave.dreamflow.pipeline import DreamflowPipeline
 from memcave.ports.protocols import (
     Clock,
@@ -54,6 +62,7 @@ from memcave.ports.protocols import (
 )
 from memcave.services.operations import (
     Deps,
+    accept_candidate,
     add_memory,
     append_event,
     delete_memory,
@@ -61,9 +70,14 @@ from memcave.services.operations import (
     export_markdown,
     fetch_memory,
     index_markdown,
+    list_candidate_memories,
     memories_for_index,
+    reject_candidate,
     search_memory,
     update_memory,
+)
+from memcave.services.operations import (
+    load_review_memory as load_review_memory_record,
 )
 from memcave.services.render import one_line
 
@@ -215,6 +229,22 @@ class MemoryManager:
 
     async def delete_memory(self, request: DeleteMemoryRequest) -> DeleteMemoryResponse:
         return DeleteMemoryResponse(memory=await delete_memory(self.deps, request))
+
+    async def load_review_memory(self, tenant_id: UUID, user_id: UUID, memory_id: UUID) -> Memory:
+        return await load_review_memory_record(self.deps, tenant_id, user_id, memory_id)
+
+    async def list_review_candidates(self, tenant_id: UUID, user_id: UUID) -> list[Memory]:
+        return await list_candidate_memories(self.deps, tenant_id, user_id)
+
+    async def accept_review_candidate(
+        self, tenant_id: UUID, user_id: UUID, memory_id: UUID
+    ) -> Memory:
+        return await accept_candidate(self.deps, tenant_id, user_id, memory_id)
+
+    async def reject_review_candidate(
+        self, tenant_id: UUID, user_id: UUID, memory_id: UUID
+    ) -> Memory:
+        return await reject_candidate(self.deps, tenant_id, user_id, memory_id)
 
     async def get_memory_index(self, request: GetMemoryIndexRequest) -> GetMemoryIndexResponse:
         as_of = request.as_of or self.deps.clock.now()

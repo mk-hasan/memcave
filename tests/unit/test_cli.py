@@ -9,6 +9,15 @@ from memcave.cli.app import app
 runner = CliRunner()
 
 
+def test_review_help() -> None:
+    listed = runner.invoke(app, ["memory", "review", "list", "--help"])
+    assert listed.exit_code == 0, listed.output
+    assert "--tenant" in listed.output
+    accepted = runner.invoke(app, ["memory", "review", "accept", "--help"])
+    assert accepted.exit_code == 0, accepted.output
+    assert "--yes" in accepted.output
+
+
 def test_init_and_help(tmp_path: Path, monkeypatch: object) -> None:
     monkeypatch.chdir(tmp_path)  # type: ignore[attr-defined]
     result = runner.invoke(app, ["init", "--backend", "sqlite"])

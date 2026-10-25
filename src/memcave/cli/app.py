@@ -28,6 +28,8 @@ dream_app = typer.Typer(no_args_is_help=True, help="Run dreamflow.")
 benchmark_app = typer.Typer(no_args_is_help=True, help="Run and render benchmarks.")
 user_app = typer.Typer(no_args_is_help=True, help="Erase a user's stored data.")
 app.add_typer(session_app, name="session")
+review_app = typer.Typer(no_args_is_help=True, help="Accept or reject candidate memories.")
+memory_app.add_typer(review_app, name="review")
 app.add_typer(memory_app, name="memory")
 app.add_typer(dream_app, name="dreamflow")
 app.add_typer(benchmark_app, name="benchmark")
@@ -145,6 +147,68 @@ def memory_show(
     memory = result.memory
     typer.echo(f"{memory.memory_id} v{memory.version_number} {memory.status.value}")
     typer.echo(memory.content)
+
+
+@review_app.command("list")
+def review_list(
+    tenant_id: UUID = typer.Option(..., "--tenant"),
+    user_id: UUID = typer.Option(..., "--user"),
+    backend: str | None = BackendOpt,
+    dsn: str | None = DsnOpt,
+) -> None:
+    """List candidate memories for one user."""
+    manager = _manager(backend, dsn)
+    candidates = asyncio.run(manager.list_review_candidates(tenant_id, user_id))
+    if not candidates:
+        typer.echo("no candidates")
+        return
+    for memory in candidates:
+        typer.echo(
+            f"{memory.memory_id} v{memory.version_number} {memory.category.value} {memory.title}"
+        )
+
+
+@review_app.command("accept")
+def review_accept(
+    tenant_id: UUID = typer.Option(..., "--tenant"),
+    user_id: UUID = typer.Option(..., "--user"),
+    memory_id: UUID = typer.Option(..., "--memory"),
+    yes: bool = typer.Option(False, "--yes", help="Write a new active version"),
+    backend: str | None = BackendOpt,
+    dsn: str | None = DsnOpt,
+) -> None:
+    """Promote a candidate by appending an active version."""
+    manager = _manager(backend, dsn)
+    current = asyncio.run(manager.load_review_memory(tenant_id, user_id, memory_id))
+    if not yes:
+        typer.echo(
+            f"would accept {current.memory_id} v{current.version_number} "
+            f"{current.status.value} -> active"
+        )
+        typer.echo("pass --yes to update")
+        return
+    updated = asyncio.run(manager.accept_review_candidate(tenant_id, user_id, memory_id))
+    typer.echo(f"accepted {updated.memory_id} v{updated.version_number} {updated.status.value}")
+
+
+@review_app.command("reject")
+def review_reject(
+    tenant_id: UUID = typer.Option(..., "--tenant"),
+    user_id: UUID = typer.Option(..., "--user"),
+    memory_id: UUID = typer.Option(..., "--memory"),
+    yes: bool = typer.Option(False, "--yes", help="Soft-delete the candidate"),
+    backend: str | None = BackendOpt,
+    dsn: str | None = DsnOpt,
+) -> None:
+    """Soft-delete a candidate and keep its suppression hash."""
+    manager = _manager(backend, dsn)
+    current = asyncio.run(manager.load_review_memory(tenant_id, user_id, memory_id))
+    if not yes:
+        typer.echo(f"would reject {current.memory_id} and suppress its hash")
+        typer.echo("pass --yes to delete")
+        return
+    deleted = asyncio.run(manager.reject_review_candidate(tenant_id, user_id, memory_id))
+    typer.echo(f"rejected {deleted.memory_id} {deleted.status.value}")
 
 
 @memory_app.command("export")
