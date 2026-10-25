@@ -144,13 +144,31 @@ async def test_only_the_four_patterns_write_immediately(
         )
     )
     assert found.hits == []
+    await contract_manager.end_session(
+        EndSessionRequest(tenant_id=TENANT, user_id=USER, session_id=session_id)
+    )
+    await contract_manager.run_dreamflow(
+        RunDreamflowRequest(tenant_id=TENANT, user_id=USER, use_model=False)
+    )
+    waited = await contract_manager.search_memory(
+        SearchMemoryRequest(
+            tenant_id=TENANT,
+            user_id=USER,
+            query_text="tea",
+            memory_kinds=MemoryKind.DERIVED,
+        )
+    )
+    waited_text = " ".join(hit.content for hit in waited.hits)
+    assert "I prefer tea" in waited_text
+    assert "meeting notes" not in waited_text
     await _remember(contract_manager, "remember that I prefer concise answers")
     await _remember(contract_manager, "forget concise answers")
+    immediate = await start(contract_manager)
     await contract_manager.append_event(
         AppendEventRequest(
             tenant_id=TENANT,
             user_id=USER,
-            session_id=session_id,
+            session_id=immediate,
             event_type=EventType.EXPLICIT_MEMORY_INSTRUCTION,
             payload={
                 "instruction_type": "correct",
@@ -162,7 +180,7 @@ async def test_only_the_four_patterns_write_immediately(
         AppendEventRequest(
             tenant_id=TENANT,
             user_id=USER,
-            session_id=session_id,
+            session_id=immediate,
             event_type=EventType.EXPLICIT_MEMORY_INSTRUCTION,
             payload={
                 "instruction_type": "temporal_change",
@@ -191,9 +209,9 @@ async def test_soft_delete_appends_a_version_and_keeps_the_old_one(
         )
     )
     memory_id = found.hits[0].source_id
-    original = await contract_manager.fetch_memory(
-        FetchMemoryRequest(tenant_id=TENANT, user_id=USER, memory_id=memory_id, version_number=1)
-    )
+    before = await contract_manager.deps.derived.list_versions(_scope(), memory_id)
+    assert len(before) == 1
+    original_row = before[0].model_dump()
     await contract_manager.delete_memory(
         DeleteMemoryRequest(tenant_id=TENANT, user_id=USER, memory_id=memory_id)
     )
@@ -202,11 +220,10 @@ async def test_soft_delete_appends_a_version_and_keeps_the_old_one(
         key=lambda item: item.version_number,
     )
     assert [item.version_number for item in versions] == [1, 2]
-    assert versions[0].status is MemoryStatus.ACTIVE
-    assert versions[0].content == original.memory.content
-    assert versions[0].content_hash == original.memory.content_hash
+    assert versions[0].model_dump() == original_row
     assert versions[1].status is MemoryStatus.DELETED
-    assert versions[1].content_hash == original.memory.content_hash
+    assert versions[1].content_hash == original_row["content_hash"]
+    assert versions[1].content_hash != ""
     hidden = await contract_manager.search_memory(
         SearchMemoryRequest(
             tenant_id=TENANT,

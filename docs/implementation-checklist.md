@@ -150,14 +150,28 @@ Goal: installable package, optional dashboard, CI, and honest docs.
 - [x] Add PostgreSQL setup, LangGraph example, lifecycle, dreamflow, evaluation, threat-model summary, and API stubs.
 - [x] Add `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `CHANGELOG`, issue templates, and a pull-request template.
 - [x] Add pre-commit and GitHub Actions for Ruff, mypy, pytest, SQLite migration, package build, PostgreSQL, and LangGraph.
-- [x] Confirm the Apache-2.0 copyright line with the owner and update the license appendix.
+- [ ] Confirm the Apache-2.0 copyright line with the owner and update the license appendix. The appendix is still `Copyright [yyyy] [name of copyright owner]` on purpose.
 - [ ] Set version `0.1.0` only when the acceptance list below is true.
+
+## Phase 8 — Release lock
+
+Goal: the local 0.1.0.dev0 claim is reproducible, and the five write invariants fail when broken.
+
+- [x] Only `remember that …`, `forget …`, `use X instead of Y`, and `as of <date> …` write on append. Other messages wait for dreamflow.
+- [x] Soft delete appends a deleted version and a suppression hash. The previous version row is unchanged.
+- [x] The hash is tenant, user, category, and casefolded content. An explicit remember clears it. `erase_user_data` removes events, versions, evidence, embeddings, and hashes.
+- [x] Cosine merge requires the same tenant, user, category, and subject key. Similarity alone does not merge.
+- [x] A dreamflow retry resumes, and a second success creates no memories.
+- [x] The PostgreSQL job runs `pytest -m postgres` against the shared contract suite. The default suite skips that marker.
+- [x] The benchmark report header says the reader is scripted. Tests do not claim that hybrid has the best score.
+- [x] The Compose password is documented as local-only. The WSL Streamlit bind address is documented. The closed IDE browser is not a product change.
+- [ ] Version stays `0.1.0.dev0` until `.github/workflows/ci.yml` passes on the published commit. This lock does not push.
 
 Exit check:
 
 - [x] `pip install -e ".[dev]"` works in a clean virtual environment.
 - [x] The SQLite quickstart runs.
-- [x] CI command results are recorded from an actual run.
+- [ ] CI command results are recorded from an actual run of the current `main` commits. The earlier run was on a rewritten commit and is not this lock.
 
 ## Acceptance map
 
@@ -185,14 +199,14 @@ Local commands on Python 3.14.4, after `uv venv` and `uv pip install -e ".[dev]"
 
 - `ruff format --check src tests` and `ruff check src tests`: passed.
 - `mypy`: passed, 27 source files.
-- `pytest --cov`: 33 passed, 4 deselected (`postgres`), branch coverage 88.75% (gate 85%). The run includes the 25 benchmark cases. The report header says the reader is scripted and this is not a production-model result.
+- `pytest --cov`: 33 passed, 4 deselected (`postgres`), branch coverage 88.84% (gate 85%). The run includes the 25 benchmark cases. The report header says the reader is scripted and this is not a production-model result. The tests do not assert that hybrid has the best score.
 - `python examples/quickstart_memory.py`: printed the concise-answer memory and `fenced True`.
 - `python examples/sqlite_quickstart.py`: printed the February fiscal-year memory and wrote `.memcave/export`. That directory is gitignored.
 - `python -m build`: built `memcave-0.1.0.dev0.tar.gz` and the wheel.
-- `MEMCAVE_POSTGRES_DSN=postgresql+asyncpg://memcave:memcave@localhost:5432/memcave pytest -m postgres`: 4 passed, 33 deselected. Those four are the shared contract tests, not a one-case smoke test. The Compose password is local-only.
-- `pytest tests/integration` with the langgraph extra: 3 passed. `python examples/langgraph_agent.py` printed answer `4`.
+- `MEMCAVE_POSTGRES_DSN=postgresql+asyncpg://memcave:memcave@localhost:5432/memcave pytest -m postgres`: 4 passed, 33 deselected, against the running Compose database. Those four are the shared contract tests. The Compose password is local-only.
+- `pytest tests/integration`: 3 passed with the langgraph extra installed.
 - Streamlit `AppTest` uploaded a benchmark JSON and rendered the metrics table. A closed browser at `127.0.0.1:8765` is a WSL reachability issue, not a product failure. Bind with `streamlit run src/memcave/dashboard/app.py --server.address 0.0.0.0 --server.port 8765` and open the WSL IP from Windows.
-- GitHub Actions has not been recorded yet. The workflow is `.github/workflows/ci.yml`. The package version stays `0.1.0.dev0` until that workflow passes.
+- `.github/workflows/ci.yml` was not run for this lock. Nothing was pushed. The package version stays `0.1.0.dev0`.
 
 ## Remaining risks
 

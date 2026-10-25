@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from tests.conftest import OTHER_USER, TENANT, USER, manager_from_parts, start
+from tests.conftest import OTHER_TENANT, OTHER_USER, TENANT, USER, manager_from_parts, start
 
 from memcave.adapters.memory.stores import (
     InMemoryData,
@@ -86,6 +86,7 @@ def test_hash_is_tenant_user_category_and_casefolded_content() -> None:
     assert left == right
     assert left != other_user
     assert left != content_hash(TENANT, None, MemoryCategory.PREFERENCE, "prefer concise")
+    assert left != content_hash(OTHER_TENANT, USER, MemoryCategory.PREFERENCE, "prefer concise")
     assert left != content_hash(TENANT, USER, MemoryCategory.PROJECT, "prefer concise")
     assert subject_key("I prefer concise answers") == "concise"
     assert subject_key("Prefer metric units") == "metric"
@@ -111,6 +112,21 @@ async def test_similarity_alone_does_not_merge() -> None:
         "Prefer concise answers.",
         "Prefer metric units.",
     ]
+    await manager.add_memory(
+        AddMemoryRequest(
+            tenant_id=OTHER_TENANT,
+            user_id=USER,
+            category=MemoryCategory.PREFERENCE,
+            title="violet",
+            content="Prefer violet notebooks.",
+        )
+    )
+    await _end_and_message(manager, "Prefer violet notebooks.")
+    separated = await manager.run_dreamflow(
+        RunDreamflowRequest(tenant_id=TENANT, user_id=USER, use_model=False)
+    )
+    assert any(note.startswith("create:") for note in separated.run.report["notes"])
+    assert (await _stored(manager)).count("Prefer violet notebooks.") == 1
     await manager.add_memory(
         AddMemoryRequest(
             tenant_id=TENANT,
