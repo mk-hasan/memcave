@@ -1,0 +1,10 @@
+# Local development only. The username and password memcave are not a production secret.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: memcave
+      POSTGRES_PASSWORD: memcave
+      POSTGRES_DB: memcave
+    ports:
+      - "5432:5432"

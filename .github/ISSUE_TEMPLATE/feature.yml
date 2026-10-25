@@ -1,0 +1,10 @@
+name: Feature
+description: A change that fits the 0.1 scope or a later extension point
+title: "[feature] "
+body:
+  - type: textarea
+    attributes:
+      label: Proposal
+      description: Describe the user-visible behavior. Note if it requires a new dependency or a new adapter.
+    validations:
+      required: true
