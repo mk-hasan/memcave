@@ -6,6 +6,7 @@ import json
 import math
 import re
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from memcave.domain.enums import MemoryCategory
@@ -85,11 +86,63 @@ _SUBJECT_STOP = frozenset(
 
 
 def subject_key(text: str) -> str:
-    """First content-bearing token. Cosine merge also requires this key."""
+    """First content-bearing token. Fallback when a memory has no explicit key."""
     for token in tokenize(text):
         if token not in _SUBJECT_STOP:
             return token
     return ""
+
+
+def _explicit_subject_key(source: object) -> str | None:
+    if not isinstance(source, dict) or "subject_key" not in source:
+        return None
+    raw = source.get("subject_key")
+    if isinstance(raw, str):
+        return raw.strip()
+    return ""
+
+
+def resolve_subject_key(
+    *,
+    category: MemoryCategory,
+    title: str,
+    content: str,
+    structured_content: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    """Stable subject. Explicit keys win; otherwise category plus the title slug."""
+    explicit = _explicit_subject_key(structured_content)
+    if explicit is None:
+        explicit = _explicit_subject_key(metadata)
+    if explicit is not None:
+        return explicit
+    try:
+        return f"{category.value}/{slugify(title)}"
+    except ValidationError:
+        return subject_key(content)
+
+
+def same_subject(memory_key: str, episode_text: str) -> bool:
+    """True when an episode is about the derived memory's subject key."""
+    if not memory_key:
+        return False
+    if memory_key == subject_key(episode_text):
+        return True
+    tail = memory_key.rsplit("/", 1)[-1]
+    if tail and tail == subject_key(episode_text):
+        return True
+    return memory_key in set(tokenize(episode_text))
+
+
+def subject_in_question(memory_key: str, question: str) -> bool:
+    """True when the subject key itself is a token in the question."""
+    if not memory_key:
+        return False
+    tokens = set(tokenize(question))
+    if memory_key in tokens:
+        return True
+    tail = memory_key.rsplit("/", 1)[-1]
+    return bool(tail) and tail in tokens
 
 
 def estimate_tokens(text: str) -> int:

@@ -79,7 +79,7 @@ from memcave.services.operations import (
 from memcave.services.operations import (
     load_review_memory as load_review_memory_record,
 )
-from memcave.services.render import one_line
+from memcave.services.render import first_evidence_event_id, one_line
 
 
 class MemoryManager:
@@ -259,6 +259,7 @@ class MemoryManager:
                 status=memory.status,
                 confidence=memory.confidence,
                 summary=one_line(memory.content),
+                evidence_event_id=first_evidence_event_id(memory),
             )
             for memory in memories
         ]

@@ -19,24 +19,33 @@ async def main() -> None:
     first = AgentTurnLoop(manager, TENANT, USER)
     await first.start()
     opening = await first.ask("remember that I prefer concise answers")
+    await first.record(EventType.TOOL_CALL, {"name": "search_memory"})
+    await first.record(EventType.TOOL_RESULT, {"content": "logged tool output"})
     reply = await model.complete_structured(
         ModelRequest(
             task="answer",
             system_prompt="Use only the supplied context.",
-            user_prompt=f"Question: remember that I prefer concise answers\n{opening.context_block}",
+            user_prompt=(
+                "Question: remember that I prefer concise answers\n"
+                f"{opening.context_block}"
+            ),
             temperature=0.0,
             seed=0,
         )
     )
     await first.record(EventType.FINAL_ANSWER, {"content": reply.content})
-    await first.close()
+    assert first.search_calls == 1
+    await first.close(dream=True)
 
     second = AgentTurnLoop(manager, TENANT, USER)
     await second.start()
     recalled = await second.ask("how should you answer?")
+    await second.record(EventType.TOOL_RESULT, {"content": "logged tool output"})
+    assert second.search_calls == 1
     print(recalled.context_block)
     print("fenced", "<<<MEMCAVE_MEMORY>>>" in recalled.context_block)
     print("retrieved", "concise" in recalled.context_block.casefold())
+    print("searches", first.search_calls, second.search_calls)
 
 
 if __name__ == "__main__":

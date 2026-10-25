@@ -59,8 +59,9 @@ from memcave.ports.protocols import (
     VectorStore,
 )
 from memcave.services.instructions import immediate_instruction, parse_instruction
-from memcave.services.render import render_context, render_index
+from memcave.services.render import render_context, render_index, workflow_injection
 from memcave.services.scoring import (
+    apply_subject_boosts,
     episodic_importance,
     min_max,
     recency_score,
@@ -534,8 +535,8 @@ async def search_memory(
         query_vector = embedded[0]
         vector_matches = await deps.vectors.search(scope, query_vector, limit=200, owner_kind=None)
         cosine_by_owner = {match.owner_id: match.cosine for match in vector_matches}
-        derived_parts: list[tuple[RetrievalHit, object]] = []
-        episodic_parts: list[tuple[RetrievalHit, object]] = []
+        derived_parts: list[tuple[Memory, RetrievalHit]] = []
+        episodic_parts: list[tuple[SessionEvent, RetrievalHit]] = []
         unavailable: list[str] = []
         if request.memory_kinds in {MemoryKind.BOTH, MemoryKind.DERIVED}:
             memories = await deps.derived.list_memories(
@@ -574,7 +575,7 @@ async def search_memory(
                 scored.append((memory, parts))
             min_max([part for _, part in scored])
             for memory, parts in scored:
-                derived_parts.append((_hit_from_memory(memory, parts), parts))
+                derived_parts.append((memory, _hit_from_memory(memory, parts)))
                 unavailable.extend(parts.unavailable)
         if request.memory_kinds in {MemoryKind.BOTH, MemoryKind.EPISODIC}:
             events, _cursor = await deps.episodic.list_events(
@@ -610,9 +611,10 @@ async def search_memory(
                 event_scored.append((event, text, parts))
             min_max([part for _, _, part in event_scored])
             for event, text, parts in event_scored:
-                episodic_parts.append((_hit_from_event(event, text, parts), parts))
+                episodic_parts.append((event, _hit_from_event(event, text, parts)))
                 unavailable.extend(parts.unavailable)
-        ranked = [hit for hit, _part in derived_parts + episodic_parts]
+        apply_subject_boosts(derived_parts, episodic_parts)
+        ranked = [hit for _memory, hit in derived_parts] + [hit for _event, hit in episodic_parts]
         ranked.sort(
             key=lambda hit: (
                 -hit.score,
@@ -646,7 +648,7 @@ async def search_memory(
             used += hit.token_estimate
         for index, hit in enumerate(selected, start=1):
             hit.rank = index
-        context = render_context(selected)
+        context = render_context(selected, workflow_injection(query, selected))
         redacted_query, _, _ = deps.redaction.redact_text(request.query_text)
         audit_id = uuid4()
         await _audit(
@@ -693,6 +695,7 @@ def _hit_from_memory(memory: Memory, parts: object) -> RetrievalHit:
         category=memory.category.value,
         source=memory.source.value,
         structured_content=memory.structured_content,
+        subject_key=memory.subject_key,
         score=parts.normalized,
         score_components={
             **parts.components,

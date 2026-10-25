@@ -34,9 +34,7 @@ async def main() -> None:
         )
     )
     await manager.end_session(
-        EndSessionRequest(
-            tenant_id=tenant, user_id=user, session_id=started.session.session_id
-        )
+        EndSessionRequest(tenant_id=tenant, user_id=user, session_id=started.session.session_id)
     )
     await manager.run_dreamflow(RunDreamflowRequest(tenant_id=tenant, user_id=user))
     found = await manager.search_memory(

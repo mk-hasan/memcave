@@ -25,7 +25,7 @@ class TurnContext:
 
 
 class AgentTurnLoop:
-    """Log a session, inject recall, and dream after the session ends."""
+    """Log a session and inject one search per user question."""
 
     def __init__(
         self,
@@ -43,6 +43,7 @@ class AgentTurnLoop:
         self.use_model = use_model
         self.session_id = uuid4()
         self.index_markdown = ""
+        self.search_calls = 0
         self._started = False
         self._closed = False
 
@@ -69,6 +70,7 @@ class AgentTurnLoop:
         return self.index_markdown
 
     async def record(self, event_type: EventType, payload: dict[str, Any]) -> None:
+        """Store an event. Tool results do not trigger another search."""
         if not self._started:
             raise RuntimeError("start the session before recording an event")
         await on_event(
@@ -81,10 +83,11 @@ class AgentTurnLoop:
         )
 
     async def ask(self, question: str) -> TurnContext:
-        """Record the user message and inject a delimited search result."""
+        """Record the user message and search once for that question."""
         await self.record(EventType.USER_MESSAGE, {"content": question})
         if self.memory_opt_out:
             return TurnContext(index_markdown="", context_block="")
+        self.search_calls += 1
         found = await self.manager.search_memory(
             SearchMemoryRequest(
                 tenant_id=self.tenant_id,
@@ -97,15 +100,15 @@ class AgentTurnLoop:
             context_block=found.context_block,
         )
 
-    async def close(self) -> None:
-        """End the session, then run dreamflow unless the user opted out."""
+    async def close(self, *, dream: bool = False) -> None:
+        """End the session. Dream only when dream is true and memory is enabled."""
         if self._closed:
             return
         if not self._started:
             raise RuntimeError("start the session before closing it")
         await on_session_end(self.manager, self.tenant_id, self.user_id, self.session_id)
         self._closed = True
-        if self.memory_opt_out:
+        if not dream or self.memory_opt_out:
             return
         await self.manager.run_dreamflow(
             RunDreamflowRequest(

@@ -53,7 +53,7 @@ from memcave.domain.models import (
     TenantScope,
     VectorMatch,
 )
-from memcave.services.text import cosine_similarity
+from memcave.services.text import cosine_similarity, resolve_subject_key
 
 
 def _window(version: MemoryVersion, as_of: datetime) -> bool:
@@ -778,6 +778,13 @@ def _view(record: MemoryRecord, version: MemoryVersion, evidence: list[MemoryEvi
         predecessor_version_id=version.predecessor_version_id,
         embedding_id=version.embedding_id,
         metadata=version.metadata,
+        subject_key=resolve_subject_key(
+            category=record.category,
+            title=version.title,
+            content=version.content,
+            structured_content=version.structured_content,
+            metadata=version.metadata,
+        ),
         logical_path=record.logical_path,
         source=version.source,
         content_hash=version.content_hash,

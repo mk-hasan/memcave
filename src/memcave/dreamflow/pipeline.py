@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -48,7 +49,7 @@ from memcave.ports.protocols import ModelProvider
 from memcave.services.instructions import classify_text
 from memcave.services.operations import Deps, add_memory, memories_for_index, update_memory
 from memcave.services.render import render_index
-from memcave.services.text import content_hash, event_search_text, subject_key
+from memcave.services.text import content_hash, event_search_text, resolve_subject_key
 
 PIPELINE_VERSION = "0.1"
 _CONTRADICTION = ("instead of", "no longer", "do not", "not ", "that was wrong")
@@ -597,7 +598,7 @@ def _from_event(run: DreamflowRun, session: Session, event: SessionEvent) -> Mem
                 category=MemoryCategory.WORKFLOW,
                 title=str(structured.get("goal") or "workflow"),
                 content=text or json.dumps(structured),
-                structured_content=structured,
+                structured_content=_attach_subject(event.payload, structured),
                 confidence=0.9,
                 importance=0.8,
                 evidence_event_ids=[event.event_id],
@@ -616,6 +617,7 @@ def _from_event(run: DreamflowRun, session: Session, event: SessionEvent) -> Mem
         category=category,
         title=text[:80],
         content=text,
+        structured_content=_attach_subject(event.payload, None),
         confidence=0.7,
         importance=0.5,
         evidence_event_ids=[event.event_id],
@@ -636,22 +638,17 @@ def _contradicts(left: str, right: str) -> bool:
 
 
 def _conflict_target(candidate: MemoryCandidate, memories: list[Memory]) -> Memory | None:
+    key = _candidate_subject_key(candidate)
+    if not key:
+        return None
     for memory in memories:
-        if memory.category is not candidate.category:
+        if memory.category is not candidate.category or memory.subject_key != key:
             continue
         if _structured_mismatch(candidate.structured_content, memory.structured_content):
             return memory
-        if _contradicts(candidate.content, memory.content) and _shares_topic(
-            candidate.content, memory.content
-        ):
+        if _contradicts(candidate.content, memory.content):
             return memory
     return None
-
-
-def _shares_topic(left: str, right: str) -> bool:
-    left_tokens = set(left.casefold().split())
-    right_tokens = set(right.casefold().split())
-    return len(left_tokens & right_tokens) >= 1
 
 
 def _structured_mismatch(
@@ -690,9 +687,36 @@ def _idempotency_key(request: RunDreamflowRequest, sessions: list[Session]) -> s
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def _candidate_subject_key(candidate: MemoryCandidate) -> str:
+    return resolve_subject_key(
+        category=candidate.category,
+        title=candidate.title,
+        content=candidate.content,
+        structured_content=candidate.structured_content,
+    )
+
+
+def _attach_subject(
+    payload: dict[str, Any], structured: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    raw = payload.get("subject_key")
+    if not isinstance(raw, str):
+        metadata = payload.get("metadata")
+        if isinstance(metadata, dict):
+            raw = metadata.get("subject_key")
+    if not isinstance(raw, str):
+        return structured
+    merged = dict(structured or {})
+    merged["subject_key"] = raw
+    return merged
+
+
 async def _cosine_duplicate(
     deps: Deps, scope: TenantScope, candidate: MemoryCandidate
 ) -> Memory | None:
+    candidate_key = _candidate_subject_key(candidate)
+    if not candidate_key:
+        return None
     vectors = await deps.embeddings.embed([candidate.content])
     if not vectors:
         return None
@@ -703,7 +727,9 @@ async def _cosine_duplicate(
         memory = by_version.get(match.owner_id)
         if memory is None or memory.category is not candidate.category:
             continue
-        if subject_key(memory.content) != subject_key(candidate.content):
+        if memory.tenant_id != candidate.tenant_id or memory.user_id != candidate.user_id:
+            continue
+        if not memory.subject_key or memory.subject_key != candidate_key:
             continue
         if match.cosine >= deps.config.duplicate_cosine_threshold:
             return memory

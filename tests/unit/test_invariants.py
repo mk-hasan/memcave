@@ -56,15 +56,20 @@ def _manager(embedding: object | None = None) -> MemoryManager:
     return manager
 
 
-async def _end_and_message(manager: MemoryManager, content: str) -> None:
+async def _end_and_message(
+    manager: MemoryManager, content: str, subject_key: str | None = None
+) -> None:
     session_id = await start(manager)
+    payload: dict[str, str] = {"content": content}
+    if subject_key is not None:
+        payload["subject_key"] = subject_key
     await manager.append_event(
         AppendEventRequest(
             tenant_id=TENANT,
             user_id=USER,
             session_id=session_id,
             event_type=EventType.USER_MESSAGE,
-            payload={"content": content},
+            payload=payload,
         )
     )
     await manager.end_session(
@@ -101,6 +106,7 @@ async def test_similarity_alone_does_not_merge() -> None:
             category=MemoryCategory.PREFERENCE,
             title="concise",
             content="Prefer concise answers.",
+            metadata={"subject_key": "answer-style"},
         )
     )
     await _end_and_message(manager, "Prefer metric units.")
@@ -140,7 +146,7 @@ async def test_similarity_alone_does_not_merge() -> None:
     await manager.run_dreamflow(
         RunDreamflowRequest(tenant_id=TENANT, user_id=USER, use_model=False)
     )
-    await _end_and_message(manager, "Prefer concise replies.")
+    await _end_and_message(manager, "Prefer concise replies.", subject_key="answer-style")
     merged = await manager.run_dreamflow(
         RunDreamflowRequest(tenant_id=TENANT, user_id=USER, use_model=False)
     )

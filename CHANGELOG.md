@@ -10,7 +10,11 @@ First implementation of the 0.1 library:
 - tests for the five release invariants: immediate instruction patterns, soft-delete versions, suppression hashes, cosine subject keys, and dreamflow retries
 - a scripted-reader limitation in the benchmark report header
 - local-only documentation for the Compose password, and the WSL Streamlit bind address
-- an agent turn loop that logs the session, injects fenced recall, and runs dreamflow after the session ends
+- an agent turn loop that logs the session, searches once per user question, and runs dreamflow only when close is asked to dream
+- retrieval that hides expired and not-yet-valid memories, then boosts an explicit correction or a newer derived memory with the same subject
+- stable subject keys that gate cosine merge and conflict detection; an empty key does not cosine-merge
+- workflow steps appended to the fenced context only when that workflow's subject is in the question
+- an evidence event id on each index line, without the episode body
 - `memcave memory review` commands that accept a candidate with a new version or reject it with hash suppression
 
 The license appendix is still the Apache placeholder `Copyright [yyyy] [name of copyright owner]`. This version stays `0.1.0.dev0` until GitHub Actions passes. That workflow was not run for this lock.

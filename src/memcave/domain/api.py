@@ -209,6 +209,7 @@ class IndexEntry(MemcaveModel):
     status: MemoryStatus
     confidence: float
     summary: str
+    evidence_event_id: UUID | None = None
 
 
 class GetMemoryIndexRequest(MemcaveModel):

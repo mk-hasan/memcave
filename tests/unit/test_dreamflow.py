@@ -134,7 +134,7 @@ async def test_contradiction_creates_a_new_version(memory_manager: MemoryManager
             user_id=USER,
             session_id=first,
             event_type=EventType.USER_MESSAGE,
-            payload={"content": "I prefer blue widgets"},
+            payload={"content": "I prefer blue widgets", "subject_key": "widgets"},
         )
     )
     await memory_manager.end_session(
@@ -148,7 +148,10 @@ async def test_contradiction_creates_a_new_version(memory_manager: MemoryManager
             user_id=USER,
             session_id=second,
             event_type=EventType.USER_MESSAGE,
-            payload={"content": "I prefer red widgets instead of blue widgets"},
+            payload={
+                "content": "I prefer red widgets instead of blue widgets",
+                "subject_key": "widgets",
+            },
         )
     )
     await memory_manager.end_session(

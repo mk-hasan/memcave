@@ -132,6 +132,7 @@ class Memory(MemcaveModel):
     predecessor_version_id: UUID | None = None
     embedding_id: UUID | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    subject_key: str = ""
     logical_path: str
     source: MemorySource
     content_hash: str
@@ -280,6 +281,7 @@ class RetrievalHit(MemcaveModel):
     content: str
     category: str | None = None
     source: str | None = None
+    subject_key: str = ""
     structured_content: dict[str, Any] | None = None
     score: float
     score_components: dict[str, float]

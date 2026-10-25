@@ -3,8 +3,12 @@
 import math
 from datetime import datetime
 
-from memcave.domain.enums import EventType
-from memcave.domain.models import ScoreParts
+from memcave.domain.enums import EventType, MemoryCategory, MemorySource
+from memcave.domain.models import Memory, RetrievalHit, ScoreParts, SessionEvent
+from memcave.services.text import same_subject
+
+_EXPLICIT_SOURCES = {MemorySource.EXPLICIT_INSTRUCTION, MemorySource.API}
+_BOOST_STEP = 2.0
 
 
 def episodic_importance(event_type: EventType) -> float:
@@ -83,3 +87,50 @@ def window_contains(valid_from: datetime, valid_until: datetime | None, as_of: d
     if valid_from > as_of:
         return False
     return valid_until is None or valid_until > as_of
+
+
+def _add_subject_boost(hit: RetrievalHit, amount: float) -> None:
+    if amount <= 0:
+        return
+    current = float(hit.score_components.get("subject_boost", 0.0))
+    hit.score_components["subject_boost"] = current + amount
+    hit.score += amount
+
+
+def apply_subject_boosts(
+    derived: list[tuple[Memory, RetrievalHit]],
+    episodic: list[tuple[SessionEvent, RetrievalHit]],
+) -> None:
+    """Boost later facts and explicit corrections without changing top_k."""
+    groups: dict[str, list[int]] = {}
+    for index, (memory, _hit) in enumerate(derived):
+        if not memory.subject_key:
+            continue
+        groups.setdefault(memory.subject_key, []).append(index)
+    for indexes in groups.values():
+        if len(indexes) < 2:
+            continue
+        ordered = sorted(
+            indexes,
+            key=lambda item: (derived[item][0].valid_from, derived[item][0].version_number),
+        )
+        for rank, index in enumerate(ordered):
+            _add_subject_boost(derived[index][1], rank * _BOOST_STEP)
+    for memory, hit in derived:
+        if memory.category not in {MemoryCategory.CORRECTION, MemoryCategory.PREFERENCE}:
+            continue
+        if memory.source not in _EXPLICIT_SOURCES:
+            continue
+        if not memory.subject_key:
+            continue
+        older = False
+        for event, episode in episodic:
+            if event.occurred_at.tzinfo is None or memory.valid_from.tzinfo is None:
+                continue
+            if event.occurred_at >= memory.valid_from:
+                continue
+            if same_subject(memory.subject_key, episode.content):
+                older = True
+                break
+        if older:
+            _add_subject_boost(hit, _BOOST_STEP)

@@ -48,9 +48,7 @@ async def main() -> None:
         )
     )
     exported = await manager.export_markdown(
-        ExportMarkdownRequest(
-            tenant_id=TENANT, user_id=USER, output_dir=str(root / "export")
-        )
+        ExportMarkdownRequest(tenant_id=TENANT, user_id=USER, output_dir=str(root / "export"))
     )
     print(found.hits[0].content)
     print(exported.output_dir)
